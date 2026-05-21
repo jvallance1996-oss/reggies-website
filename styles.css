@@ -308,6 +308,28 @@ h3 {
   color: var(--muted);
 }
 
+.local-seo-section {
+  background: #fbfcfa;
+}
+
+.local-service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.local-service-grid article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 24px;
+  background: var(--white);
+}
+
+.local-service-grid p {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
 .quote-band {
   align-items: center;
   justify-content: space-between;
@@ -517,13 +539,31 @@ h3 {
   gap: 10px;
 }
 
-.suburb-list span {
+.suburb-list span,
+.suburb-list a {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 10px 15px;
   background: var(--white);
   color: var(--green-dark);
   font-weight: 800;
+}
+
+.suburb-list a:hover {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.location-hero {
+  min-height: 72vh;
+}
+
+.location-content {
+  background: var(--white);
+}
+
+.location-links a {
+  display: inline-flex;
 }
 
 .contact-section {
@@ -616,6 +656,10 @@ h3 {
   }
 
   .faq-list {
+    grid-template-columns: 1fr;
+  }
+
+  .local-service-grid {
     grid-template-columns: 1fr;
   }
 
