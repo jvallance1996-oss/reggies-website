@@ -470,12 +470,20 @@ h3 {
 }
 
 .review-card strong,
+.review-card .review-author,
 .review-card span {
   display: block;
 }
 
 .review-card strong {
   color: var(--black);
+}
+
+.review-card .review-author {
+  color: var(--black);
+  font-weight: 800;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
 }
 
 .review-card span {

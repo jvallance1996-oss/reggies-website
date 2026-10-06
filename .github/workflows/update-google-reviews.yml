@@ -1,0 +1,30 @@
+name: Update Google reviews
+
+on:
+  schedule:
+    - cron: "17 17 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-reviews:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refresh cached reviews
+        env:
+          GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+        run: python3 scripts/update_google_reviews.py
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- google-reviews.json; then
+            echo "Review cache is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add google-reviews.json
+          git commit -m "Update Google review cache"
+          git push

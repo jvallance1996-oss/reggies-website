@@ -1,0 +1,12 @@
+{
+  "placeName": "Reggie's Lawn and Outdoor Solutions",
+  "rating": 5.0,
+  "reviewCount": 19,
+  "googleMapsUri": "https://www.google.com/search?q=Reggie%27s+Lawn+and+Outdoor+Solutions",
+  "updatedAt": "2026-10-06T00:00:00Z",
+  "reviews": [
+    {"author": "Kylie K", "authorUri": "", "rating": 5, "relativeTime": "", "text": "Absolutely amazing to deal with..."},
+    {"author": "Leanne Terpenou", "authorUri": "", "rating": 5, "relativeTime": "", "text": "Jack was fantastic! Great communication..."},
+    {"author": "Libby Carter", "authorUri": "", "rating": 5, "relativeTime": "", "text": "Professional, punctual and great..."}
+  ]
+}
