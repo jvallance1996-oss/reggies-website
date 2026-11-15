@@ -80,7 +80,13 @@ function renderGoogleReviews(data) {
   });
 
   const rating = Number(data.rating).toFixed(1);
-  reviewSummary.textContent = `Reggie's Lawn and Outdoor Solutions is rated ${rating} on Google from ${data.reviewCount} reviews.`;
+  const checked = new Date(data.updatedAt);
+  const validDate = Number.isFinite(checked.getTime());
+  const stale = !validDate || Date.now() - checked.getTime() > 30 * 86400000;
+  const dateLabel = validDate ? checked.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Melbourne" }) : "";
+  reviewSummary.textContent = stale
+    ? "See our latest customer rating and reviews on Google."
+    : `Reggie's Lawn and Outdoor Solutions is rated ${rating} on Google from ${data.reviewCount} reviews (checked ${dateLabel}).`;
 }
 
 if (reviewGrid && reviewSummary) {

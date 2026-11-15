@@ -742,3 +742,13 @@ h3 {
     text-align: left;
   }
 }
+
+/* Preserve complete before/after comparisons on desktop and mobile. */
+.project-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:28px; align-items:start; }
+.project-grid figure { margin:0; overflow:hidden; border:1px solid var(--line); border-radius:18px; background:var(--white); }
+.project-grid img { width:100%; height:auto; }
+.project-grid figcaption { padding:20px; }
+.project-grid h3 { margin:0 0 10px; }
+.project-grid p { margin:0; }
+.project-cta a, .local-seo-section p a { text-decoration:underline; text-underline-offset:3px; font-weight:700; }
+@media(max-width:700px) { .project-grid { grid-template-columns:1fr; } }
