@@ -7,6 +7,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import { SQLiteStore, PostgresStore } from './store.mjs';
 import { validateQuote, MAX_BODY_BYTES } from './validation.mjs';
+import { createMicrosoftGraphTransport, graphConfigurationReady } from './microsoft-graph.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -96,20 +97,27 @@ function authorised(req, password) {
 
 function emailMessage(quote, photos, env) {
   const p = quote.payload;
+  const graph = env.MAIL_PROVIDER === 'microsoft-graph';
+  const photoNote = graph ? [
+    '', `${photos.length} photo(s) saved with this enquiry.`,
+    `Private enquiry inbox: ${new URL('/admin/quotes', env.PUBLIC_ORIGIN).href}`,
+    ...(photos.map(photo => `${photo.name}: ${new URL(`/admin/quotes/${quote.requestId}/photos/${photo.position}`, env.PUBLIC_ORIGIN).href}`)),
+    'Sign in with your private enquiry inbox credentials to view the original photos.',
+  ] : ['', `${photos.length} photo(s) attached.`];
   const lines = [
     `Quote reference: ${quote.reference}`, `Name: ${p.name}`, `Suburb: ${p.suburb}`,
     `Service: ${p.service}`, `Reply by: ${p.contactPreference}`, `Phone: ${p.phone || 'Not provided'}`,
     `Email: ${p.email || 'Not provided'}`, `Job type: ${p.jobType || 'Not provided'}`,
     `Timing: ${p.timing || 'Not provided'}`, '', 'Job details:', p.details || 'Not provided',
-    '', `${photos.length} photo(s) attached.`,
+    ...photoNote,
   ];
   return {
-    from: env.SMTP_FROM, to: env.QUOTE_TO,
+    from: graph ? env.MAIL_FROM : env.SMTP_FROM, to: env.QUOTE_TO,
     ...(p.email ? { replyTo: p.email } : {}),
     subject: `Reggie's quote ${quote.reference}`,
     text: lines.join('\n'),
     messageId: `<${quote.requestId}@${new URL(env.PUBLIC_ORIGIN || 'https://reggies.com.au').hostname}>`,
-    attachments: photos.map(photo => ({ filename: photo.name, content: photo.bytes, contentType: photo.type })),
+    attachments: graph ? [] : photos.map(photo => ({ filename: photo.name, content: photo.bytes, contentType: photo.type })),
     disableFileAccess: true, disableUrlAccess: true,
   };
 }
@@ -120,15 +128,20 @@ export async function createApp(options = {}) {
   const publicDir = resolve(options.publicDir || env.PUBLIC_DIR || '.');
   const publicJS = new Set(['script.js', 'quote-form.js', ...String(env.PUBLIC_JS_FILES || '').split(',').map(item => item.trim()).filter(item => /^[a-z0-9][a-z0-9-]*\.js$/.test(item))]);
   const configuredOrigin = originOf(env.PUBLIC_ORIGIN || '');
+  const mailProvider = env.MAIL_PROVIDER || 'smtp';
+  const knownProvider = ['smtp', 'microsoft-graph'].includes(mailProvider);
   const smtpReady = smtpKeys.every(key => Boolean(env[key])) && /^\d+$/.test(env.SMTP_PORT || '') && Number(env.SMTP_PORT) > 0 && Number(env.SMTP_PORT) <= 65535 && mailAddress(env.SMTP_FROM) && mailAddress(env.QUOTE_TO);
-  const configurationReady = !production || Boolean(env.DATABASE_URL && configuredOrigin?.startsWith('https://') && smtpReady);
+  const graphReady = graphConfigurationReady(env) && Boolean(env.ADMIN_PASSWORD && configuredOrigin?.startsWith('https://'));
+  const mailReady = mailProvider === 'microsoft-graph' ? graphReady : smtpReady;
+  const configurationReady = knownProvider && (!production || Boolean(env.DATABASE_URL && configuredOrigin?.startsWith('https://') && mailReady));
   let store = options.store;
   let transport = options.transport;
   if (!store && configurationReady) {
     const pgOptions = { ...(production || env.DATABASE_CA_CERT ? { ssl: { ...(env.DATABASE_CA_CERT ? { ca: env.DATABASE_CA_CERT.replaceAll('\\n', '\n') } : {}), rejectUnauthorized: true } } : {}), ...options.pgOptions };
     store = env.DATABASE_URL ? await PostgresStore.connect(env.DATABASE_URL, pgOptions) : new SQLiteStore(env.QUOTE_DB_PATH || './data/quotes.sqlite');
   }
-  if (!transport && smtpReady) {
+  if (!transport && mailProvider === 'microsoft-graph' && graphReady) transport = createMicrosoftGraphTransport(env, options.graphOptions);
+  if (!transport && mailProvider === 'smtp' && smtpReady) {
     const { default: nodemailer } = await import('nodemailer');
     const secure = env.SMTP_SECURE === 'true' || Number(env.SMTP_PORT) === 465;
     transport = nodemailer.createTransport({
@@ -147,7 +160,7 @@ export async function createApp(options = {}) {
   let activeUploads = 0;
 
   async function processNotifications(now = Date.now()) {
-    if (!store || !transport || sending || closing || !configurationReady) return;
+    if (!store || !transport || sending || closing || !configurationReady || (mailProvider === 'microsoft-graph' && !graphReady)) return;
     sending = true;
     const startedAt = Date.now();
     try {
@@ -161,9 +174,10 @@ export async function createApp(options = {}) {
           const result = await transport.sendMail(emailMessage(quote, photos, env));
           if (Array.isArray(result?.rejected) && result.rejected.length) throw new Error('recipient-rejected');
           await store.finishNotification(quote.requestId, 'sent', 0);
-        } catch {
+        } catch (error) {
           const exhausted = quote.notificationAttempts >= 8;
-          const delay = Math.min(30 * 60_000, 30_000 * (2 ** Math.min(quote.notificationAttempts - 1, 6)));
+          const providerDelay = Number.isFinite(error?.retryAfterMs) ? Math.max(0, Math.min(86_400_000, error.retryAfterMs)) : 0;
+          const delay = Math.max(providerDelay, Math.min(30 * 60_000, 30_000 * (2 ** Math.min(quote.notificationAttempts - 1, 6))));
           await store.finishNotification(quote.requestId, exhausted ? 'failed' : 'retry', now + (Date.now() - startedAt) + delay, 'notification-delivery-failed');
           // Log operational state only. Never log client content, SMTP responses, addresses, IPs or credentials.
           log(exhausted ? 'quote_notification_exhausted' : 'quote_notification_retry');

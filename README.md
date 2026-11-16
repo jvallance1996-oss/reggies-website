@@ -8,18 +8,18 @@ This change includes a backend. A static-site-only component cannot process `/ap
 
 1. Use the existing GitHub repository and a Node.js **Web Service** on DigitalOcean. Build with `pnpm build`, run with `pnpm start`, and expose port `8080`. The root directory remains the website's public source; no URL migration is needed.
 2. Set `NODE_ENV=production`, `PORT=8080`, `HOST=0.0.0.0`, `PUBLIC_DIR=.`, and `PUBLIC_ORIGIN=https://reggies.com.au` in the service environment.
-3. Supply `DATABASE_URL` for a backed-up PostgreSQL database and its provider CA if needed. Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, a verified `SMTP_FROM`, and `QUOTE_TO=jack@reggies.com.au` through DigitalOcean's secret environment settings. Never commit these values or paste credentials into a pull request.
-4. Redirect alternate hostnames to the canonical HTTPS domain. Set `TRUST_PROXY_HOPS` only after confirming the actual trusted edge chain. Optionally set a strong `ADMIN_PASSWORD` for the private enquiry inbox.
+3. Supply `DATABASE_URL` for a backed-up PostgreSQL database and its provider CA if needed. Choose the Microsoft 365 option in [MAIL-SETUP.md](MAIL-SETUP.md), or configure the existing SMTP option. Set `QUOTE_TO=jack@reggies.com.au`. Store credentials directly in DigitalOcean's secret environment settings; never commit them or paste them into a pull request.
+4. Redirect alternate hostnames to the canonical HTTPS domain. Set `TRUST_PROXY_HOPS` only after confirming the actual trusted edge chain. Set a strong `ADMIN_PASSWORD` for the private enquiry inbox; this is required with Microsoft Graph because notifications link to the original photos there.
 5. Run the PostgreSQL integration against a disposable test database. Confirm `/healthz`, complete one clearly labelled end-to-end test through the deployed form, verify its stored photos and actual inbox receipt, then enable the production release. An email accepted by the test transport is not evidence of inbox delivery.
 6. Check the homepage, all three services, two local landing pages and the sitemap on the final host. Keep the prior working deployment available for rollback, and monitor both enquiry errors and notifications.
 
-Existing DigitalOcean account access, database availability and SMTP credentials have not been supplied to this source repository. The new production handler fails closed when required configuration is absent; it does not pretend to receive a lead.
+Hosting and mail credentials belong in the deployment environment, not this source repository. The production handler fails closed when required configuration is absent; it does not pretend to receive a lead.
 
 `pnpm test` runs the backend suite and checks every sitemap page, internal link, asset, fragment, canonical, shared form and original URL. The GitHub pull-request workflow also runs against an isolated PostgreSQL 17 service. Local development uses SQLite and can be tested without sending real email.
 
 ## Backend
 
-Portable Node.js 24 HTTP server for the existing static website. Keep the existing pages and assets in the repository root; put `server.mjs`, `store.mjs`, `validation.mjs`, `package.json` and this environment example alongside them. This server replaces a static-only launch command. It is not a serverless function and must run continuously so the notification worker can retry failed alerts.
+Portable Node.js 24 HTTP server for the existing static website. Keep the existing pages and assets in the repository root; put `server.mjs`, `store.mjs`, `validation.mjs`, `microsoft-graph.mjs`, `package.json` and this environment example alongside them. This server replaces a static-only launch command. It is not a serverless function and must run continuously so the notification worker can retry failed alerts.
 
 ## Run locally
 
@@ -29,13 +29,13 @@ cp .env.example .env
 node --env-file=.env server.mjs
 ```
 
-Open `http://localhost:8080`. The `.env` file is loaded only when passed with `--env-file`; the production `npm start` command reads the environment supplied by the host. A development request is retained in `data/quotes.sqlite` even when SMTP is unset. Notifications remain pending until SMTP is configured. Do not mistake this development mode for an operational production deployment.
+Open `http://localhost:8080`. The `.env` file is loaded only when passed with `--env-file`; the production `pnpm start` command reads the environment supplied by the host. A development request is retained in `data/quotes.sqlite` even when email is unset. Notifications remain pending until the selected mail provider is configured. Do not mistake this development mode for an operational production deployment.
 
 `PUBLIC_DIR` defaults to the current directory. An allowlist serves route `index.html` pages, `styles.css`, `script.js`, `quote-form.js`, `robots.txt`, `sitemap.xml`, `google-reviews.json` and safe assets under `/assets/`. Extra root frontend scripts can be listed in `PUBLIC_JS_FILES`. The server rejects source files, package/config files, dotfiles, scripts, tests, database paths, extensionless regular files and symlinks escaping the public root.
 
 ## Production configuration
 
-Use Node 24 and run `npm start` with `NODE_ENV=production`. Configure an external managed PostgreSQL database with backups and `DATABASE_URL`; local SQLite is never a production fallback. Configure all six SMTP settings in `.env.example`, plus a single canonical HTTPS `PUBLIC_ORIGIN`, for example `https://reggies.com.au`. Missing settings cause `/api/quotes` and `/healthz` to return 503; the server will not claim to save enquiries to an ephemeral local file.
+Use Node 24 and run `pnpm start` with `NODE_ENV=production`. Configure an external managed PostgreSQL database with backups and `DATABASE_URL`; local SQLite is never a production fallback. Choose `MAIL_PROVIDER=microsoft-graph` with its app settings and private inbox password, or `MAIL_PROVIDER=smtp` with the six SMTP/recipient settings. Both need a single canonical HTTPS `PUBLIC_ORIGIN`, for example `https://reggies.com.au`. Missing required settings cause `/api/quotes` and `/healthz` to return 503; the server will not claim to save enquiries to an ephemeral local file. See [MAIL-SETUP.md](MAIL-SETUP.md).
 
 Production PostgreSQL uses TLS with certificate verification. If the provider requires its own CA, supply its PEM certificate in `DATABASE_CA_CERT`. The explicit TLS policy takes precedence over connection-string SSL parameters, which are removed before connecting. Do not disable certificate validation. Test the actual provider connection before launch.
 
@@ -74,11 +74,11 @@ Failures return `{ "ok": false, "error": "Message", "fields": {} }`, with `field
 
 ## Notification delivery and private inbox
 
-The database stores notification state and each attempt. The worker runs every 30 seconds and after a new request. It claims a request immediately before sending, using row leases so another replica does not normally send the same pending request. Failure retries use bounded exponential intervals from 30 seconds up to 30 minutes, with eight attempts maximum. Exhausted attempts stay marked `failed`; the enquiry and photos remain available. Monitor the `quote_notification_retry`, `quote_notification_exhausted` and worker-error operational events, plus the private inbox, to investigate delivery problems. Logs never include customer fields, IP addresses, SMTP replies or credentials.
+The database stores notification state and each attempt. The worker runs every 30 seconds and after a new request. It claims a request immediately before sending, using row leases so another replica does not normally send the same pending request. Failure retries use bounded exponential intervals from 30 seconds up to 30 minutes, with eight attempts maximum. A provider `Retry-After` can extend the delay, capped at 24 hours. Exhausted attempts stay marked `failed`; the enquiry and photos remain available. Monitor the `quote_notification_retry`, `quote_notification_exhausted` and worker-error operational events, plus the private inbox, to investigate delivery problems. Logs never include customer fields, IP addresses, provider replies or credentials.
 
-SMTP alerts are at-least-once: a crash after SMTP acceptance but before recording success may produce a duplicate alert when a lease expires. Alerts have the same message ID/reference so they can be recognised. A successful form response means the enquiry was retained; it does not claim an email has reached an inbox.
+Alerts are at-least-once: a crash after provider acceptance but before recording success may produce a duplicate alert when a lease expires. Alerts retain the same quote reference; SMTP also reuses its message ID, while Graph uses a custom reference header. A successful form response means the enquiry was retained; it does not claim an email has reached an inbox. Graph's 202 response records provider acceptance, not final delivery.
 
-Set your own `ADMIN_PASSWORD` to enable the read-only `/admin/quotes` inbox; the username is `jack`. It shows the latest 100 enquiries, contact preference, notification state and protected photo links. No password is generated or included in source. With the setting empty, the route returns 404. Serve it over the host's HTTPS edge. It sets `no-store` and `noindex`, escapes all customer text, and applies an authentication attempt limit. Do not put database backups or exports under the public website paths.
+Set your own `ADMIN_PASSWORD` to enable the read-only `/admin/quotes` inbox; the username is `jack`. This is required in Graph mode, where email includes authenticated photo links and originals stay in the database. SMTP continues to attach the photos directly. The private inbox shows the latest 100 enquiries, contact preference, notification state and protected photo links. No password is generated or included in source. With the setting empty, the route returns 404. Serve it over the host's HTTPS edge. It sets `no-store` and `noindex`, escapes all customer text, and applies an authentication attempt limit. Do not put database backups or exports under the public website paths.
 
 ## Tests
 
@@ -88,6 +88,6 @@ pnpm test
 TEST_DATABASE_URL='postgresql://…' pnpm test
 ```
 
-The suite uses temporary SQLite files, localhost servers, synthetic enquiries and injected fake SMTP. It covers persistence after reopening the database, stored photo bytes, idempotence/conflicts, malformed and unsafe inputs, photo restrictions, origin enforcement, production fail-closed behavior, storage failure, notification retries/exhaustion, private inbox rendering, static path protection and rate limiting. The PostgreSQL integration is skipped unless `TEST_DATABASE_URL` is supplied; run it against the actual database engine before deployment. Its test-only rows are removed afterward. These checks do not replace the authorised delivery test through the final host.
+The suite uses temporary SQLite files, localhost servers, synthetic enquiries, injected fake SMTP and mocked Microsoft HTTPS requests. It covers persistence after reopening the database, stored photo bytes, idempotence/conflicts, malformed and unsafe inputs, photo restrictions, origin enforcement, provider configuration, storage failure, token caching/expiry, redacted errors, Graph throttling, notification retries/exhaustion, private inbox rendering, static path protection and rate limiting. The PostgreSQL integration is skipped unless `TEST_DATABASE_URL` is supplied; run it against the actual database engine before deployment. Its test-only rows are removed afterward. These checks do not replace the authorised delivery test through the final host.
 
 Runtime dependencies are pinned to `nodemailer` 10.5.0 and `pg` 8.23.1, verified against their primary npm package pages on 15 November 2026. Commit the package manager lockfile generated during installation. SQLite uses Node 24's built-in `node:sqlite` module.

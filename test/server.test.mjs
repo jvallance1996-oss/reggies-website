@@ -11,6 +11,12 @@ import { MAX_BODY_BYTES, MAX_PHOTO_BYTES } from '../validation.mjs';
 
 const tinyPNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aM1sAAAAASUVORK5CYII=';
 const smtp = { SMTP_HOST: 'smtp.example.test', SMTP_PORT: '587', SMTP_USER: 'test-user', SMTP_PASS: 'test-only-not-a-credential', SMTP_FROM: 'website@example.test', QUOTE_TO: 'operator@example.test' };
+const graph = {
+  NODE_ENV: 'production', MAIL_PROVIDER: 'microsoft-graph',
+  MS_TENANT_ID: '11111111-1111-1111-1111-111111111111', MS_CLIENT_ID: '22222222-2222-2222-2222-222222222222', MS_CLIENT_SECRET: 'synthetic-test-secret',
+  MAIL_FROM: 'website@example.test', QUOTE_TO: 'operator@example.test', ADMIN_PASSWORD: 'synthetic-inbox-password',
+  PUBLIC_ORIGIN: 'https://reggies.com.au', DATABASE_URL: 'postgresql://configured.example.test/quotes',
+};
 const quote = (overrides = {}) => ({ requestId: randomUUID(), name: 'Test Customer', suburb: 'Eynesbury', service: 'lawn-mowing', contactPreference: 'sms', phone: '0400 000 000', email: '', details: 'One-off lawn tidy-up.', timing: '', jobType: 'one-off', photos: [], website: '', ...overrides });
 
 async function harness(t, options = {}) {
@@ -173,6 +179,58 @@ test('database failure returns a failure response, never a false success', async
   const body = await response.json();
   assert.equal(body.ok, false);
   assert.ok(!body.error.includes('private database'));
+});
+
+test('Graph production configuration fails closed if any required value or private inbox is missing', async t => {
+  for (const key of ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MAIL_FROM', 'QUOTE_TO', 'ADMIN_PASSWORD', 'PUBLIC_ORIGIN', 'DATABASE_URL']) {
+    const app = await harness(t, { env: { ...graph, [key]: '' }, transport: { async sendMail() { throw new Error('must not send'); } } });
+    const response = await app.post(quote(), { Origin: graph.PUBLIC_ORIGIN });
+    assert.equal(response.status, 503, key);
+    const body = await response.text();
+    assert.ok(!body.includes(graph.MS_CLIENT_SECRET));
+    assert.ok(!body.includes(graph.ADMIN_PASSWORD));
+    assert.equal((await app.store.recent()).length, 0);
+    await app.close();
+  }
+});
+
+test('Graph notification keeps all original photos durable and sends only authenticated links', async t => {
+  const messages = [];
+  const app = await harness(t, { env: graph, transport: { async sendMail(message) { messages.push(message); return { accepted: [graph.QUOTE_TO], rejected: [] }; } } });
+  const request = quote({ photos: Array.from({ length: 4 }, (_, index) => ({ name: `original-${index}.png`, type: 'image/png', data: tinyPNG })) });
+  const response = await app.post(request, { Origin: graph.PUBLIC_ORIGIN });
+  assert.equal(response.status, 201);
+  await app.processNotifications();
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].from, graph.MAIL_FROM);
+  assert.deepEqual(messages[0].attachments, []);
+  assert.ok(messages[0].text.includes('4 photo(s) saved'));
+  assert.ok(messages[0].text.includes(`${graph.PUBLIC_ORIGIN}/admin/quotes`));
+  for (let index = 0; index < 4; index++) assert.ok(messages[0].text.includes(`/admin/quotes/${request.requestId}/photos/${index}`));
+  assert.ok(!messages[0].text.includes(tinyPNG));
+  assert.ok(!messages[0].text.includes(graph.ADMIN_PASSWORD));
+  assert.equal((await app.store.photos(request.requestId)).length, 4);
+  assert.equal((await app.store.get(request.requestId)).notificationStatus, 'sent');
+  assert.equal((await fetch(`${app.origin}/admin/quotes/${request.requestId}/photos/0`)).status, 401);
+});
+
+test('Graph transport 429 leaves the quote durable and defers the next worker attempt', async t => {
+  const requests = [];
+  const app = await harness(t, { env: graph, graphOptions: { fetchImpl: async (url, options) => {
+    requests.push({ url, options });
+    return url.includes('login.microsoftonline.com')
+      ? new Response(JSON.stringify({ access_token: 'synthetic-token', token_type: 'Bearer', expires_in: 3600 }), { status: 200 })
+      : new Response(null, { status: 429, headers: { 'Retry-After': '300' } });
+  } } });
+  const request = quote();
+  assert.equal((await app.post(request, { Origin: graph.PUBLIC_ORIGIN })).status, 201);
+  const now = Date.now();
+  await app.processNotifications(now);
+  const saved = await app.store.get(request.requestId);
+  assert.equal(saved.notificationStatus, 'retry');
+  assert.ok(saved.nextAttemptAt >= now + 300_000);
+  await app.processNotifications(now + 30_000);
+  assert.equal(requests.length, 2);
 });
 
 test('durable notification retry survives a failed SMTP attempt and sends photo bytes on retry', async t => {
