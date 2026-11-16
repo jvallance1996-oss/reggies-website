@@ -13,6 +13,8 @@ This change includes a backend. A static-site-only component cannot process `/ap
 5. Run the PostgreSQL integration against a disposable test database. Confirm `/healthz`, complete one clearly labelled end-to-end test through the deployed form, verify its stored photos and actual inbox receipt, then enable the production release. An email accepted by the test transport is not evidence of inbox delivery.
 6. Check the homepage, all three services, two local landing pages and the sitemap on the final host. Keep the prior working deployment available for rollback, and monitor both enquiry errors and notifications.
 
+For the separate DigitalOcean static component, select the Node.js environment, build with `pnpm build:static`, and set its output directory to `dist`. That build contains only public pages, frontend files and assets. Route `/api` and `/admin` to the web service with the full path prefix preserved; route `/` to the static component. Backend source, tests, environment examples and setup documents are excluded from the static output.
+
 Hosting and mail credentials belong in the deployment environment, not this source repository. The production handler fails closed when required configuration is absent; it does not pretend to receive a lead.
 
 `pnpm test` runs the backend suite and checks every sitemap page, internal link, asset, fragment, canonical, shared form and original URL. The GitHub pull-request workflow also runs against an isolated PostgreSQL 17 service. Local development uses SQLite and can be tested without sending real email.

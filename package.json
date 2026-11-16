@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs && node scripts/check-site.mjs",
-    "build": "node scripts/check-site.mjs"
+    "build": "node scripts/check-site.mjs",
+    "build:static": "node scripts/build-static.mjs"
   },
   "dependencies": {
     "nodemailer": "10.5.0",
