@@ -57,7 +57,12 @@
           if (input instanceof HTMLElement) { input.setAttribute('aria-invalid', 'true'); first ||= input; }
         }
       }
-      if (first) first.focus(); else { error.tabIndex = -1; error.focus(); }
+      if (first) {
+        for (let ancestor = first.parentElement; ancestor && ancestor !== form; ancestor = ancestor.parentElement) {
+          if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+        }
+        first.focus();
+      } else { error.tabIndex = -1; error.focus(); }
     }
     function renderPhotos() {
       photoList.replaceChildren();

@@ -1780,6 +1780,140 @@ input[aria-invalid=true],select[aria-invalid=true],textarea[aria-invalid=true] {
   }
   
 }
+/* The homepage enquiry form is available in the opening section. */
+.hero-with-form .home-hero-inner {
+  grid-template-columns:1.05fr 1fr;
+  gap:55px;
+  padding-top:35px;
+  padding-bottom:35px;
+}
+.hero-lead-form {
+  color:var(--ink);
+  padding:25px 28px;
+  scroll-margin-top:20px;
+}
+.hero-lead-form h2 {
+  font-size:25px;
+  letter-spacing:-.035em;
+  line-height:1.2;
+  margin-bottom:7px;
+}
+.hero-lead-form .form-intro {
+  font-size:12px;
+  margin-bottom:17px;
+}
+.hero-lead-form .form-grid {
+  gap:13px 15px;
+}
+.hero-lead-form .form-grid label {
+  gap:5px;
+}
+.hero-quote-extras {
+  margin-top:16px;
+  border-top:1px solid var(--line);
+  padding-top:12px;
+}
+.hero-quote-extras>summary {
+  cursor:pointer;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.7;
+}
+.hero-extra-content {
+  padding-top:17px;
+}
+.hero-extra-content .hero-timing {
+  margin-top:17px;
+}
+.hero-lead-form .form-submit {
+  min-height:49px;
+  margin-top:17px;
+}
+.hero-lead-form .form-note {
+  margin-top:10px;
+}
+.quote-process-section .process-photo {
+  align-self:center;
+  height:405px;
+}
+@media(max-width:1050px) {
+  .hero-with-form .home-hero-inner {
+    gap:30px;
+  }
+  .hero-with-form h1 {
+    font-size:49px;
+  }
+  .hero-lead-form {
+    padding:24px;
+  }
+}
+@media(max-width:800px) {
+  .hero-with-form .home-hero-inner {
+    grid-template-columns:.95fr 1.05fr;
+    gap:24px;
+    padding:30px 22px;
+  }
+  .hero-with-form h1 {
+    font-size:39px;
+  }
+  .hero-lead-form {
+    padding:21px;
+  }
+  .hero-lead-form h2 {
+    font-size:22px;
+  }
+  .hero-lead-form input,.hero-lead-form select {
+    padding:10px 9px;
+  }
+}
+@media(max-width:600px) {
+  .hero-with-form .home-hero-inner {
+    grid-template-columns:1fr;
+    gap:22px;
+    padding:24px 20px 30px;
+  }
+  .hero-with-form h1 {
+    font-size:clamp(34px,9vw,43px);
+    line-height:1.04;
+  }
+  .hero-with-form .eyebrow {
+    margin-bottom:12px;
+  }
+  .hero-with-form .hero-text {
+    font-size:13px;
+    line-height:1.55;
+    margin-top:14px;
+  }
+  .hero-with-form .hero-actions,.hero-with-form .hero-local {
+    display:none;
+  }
+  .hero-lead-form {
+    padding:22px 20px;
+  }
+  .hero-lead-form h2 {
+    font-size:23px;
+  }
+  .hero-lead-form .form-intro {
+    font-size:11px;
+    margin-bottom:16px;
+  }
+  .hero-lead-form .form-grid {
+    gap:14px 12px;
+  }
+  .hero-lead-form input,.hero-lead-form select {
+    font-size:16px;
+    min-height:45px;
+  }
+  .hero-lead-form .form-note {
+    font-size:9px;
+  }
+  .quote-process-section .quote-steps {
+    display:block;
+  }
+  .quote-process-section .process-photo {
+    height:270px;
+  }
+}
 @media(prefers-reduced-motion:reduce) {
   html {
     scroll-behavior:auto
