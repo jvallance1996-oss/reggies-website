@@ -1,6 +1,7 @@
 import { copyFile, lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 
 // Validate the source before creating a separate public-only build. The API
 // service continues to run from the repository root and uses its own allowlist.
@@ -55,4 +56,6 @@ for (const file of files) {
   await mkdir(dirname(destination), { recursive: true });
   await copyFile(join(root, file), destination);
 }
+const builtCheck = spawnSync(process.execPath, [join(root, 'scripts/check-site.mjs'), '--root', output], { stdio: 'inherit' });
+assert.equal(builtCheck.status, 0, 'The public build must pass the site checks');
 console.log(`Static build ready: ${urls.length} pages, ${assets} assets and ${files.size} public files in dist/.`);

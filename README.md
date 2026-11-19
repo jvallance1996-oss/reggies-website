@@ -15,6 +15,8 @@ This change includes a backend. A static-site-only component cannot process `/ap
 
 For the separate DigitalOcean static component, select the Node.js environment, build with `pnpm build:static`, and set its output directory to `dist`. That build contains only public pages, frontend files and assets. Route `/api` and `/admin` to the web service with the full path prefix preserved; route `/` to the static component. Backend source, tests, environment examples and setup documents are excluded from the static output.
 
+Photos use responsive WebP sources under `assets/responsive/`, with the original JPEG as the fallback. When replacing a photo, regenerate its responsive variants and update the corresponding dimensions and `srcset` together. The site checks validate every responsive candidate; `pnpm build:static` also checks the actual `dist` output so missing delivery assets fail the build.
+
 Hosting and mail credentials belong in the deployment environment, not this source repository. The production handler fails closed when required configuration is absent; it does not pretend to receive a lead.
 
 `pnpm test` runs the backend suite and checks every sitemap page, internal link, asset, fragment, canonical, shared form and original URL. The GitHub pull-request workflow also runs against an isolated PostgreSQL 17 service. Local development uses SQLite and can be tested without sending real email.
