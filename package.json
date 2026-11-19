@@ -1,0 +1,18 @@
+{
+  "name": "reggies-quote-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "24.x" },
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs && node scripts/check-site.mjs",
+    "build": "node scripts/check-site.mjs",
+    "build:static": "node scripts/build-static.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "10.5.0",
+    "pg": "8.23.1"
+  }
+}
